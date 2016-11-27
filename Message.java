@@ -24,14 +24,14 @@ public class Message implements Serializable, Comparable<Message>
 
     public String toString()
     {
-        return "Message timestamp: " + timestamp + ", Message Type: " + type + ", Message: " + msg;
+        return "Message timestamp: " + timestamp + ", Message Type: " + type;
     }
 
     public boolean equals(Object obj)
     {
         if(!(obj instanceof Message))
             return false;
-        return ((this.timestamp.equals(((Message)(obj)).timestamp)) && (this.type == ((Message)(obj)).type) && (this.msg.equals(((Message)(obj)).msg)));
+        return ((this.timestamp.equals(((Message)(obj)).timestamp)) && (this.type == ((Message)(obj)).type));
     }
 
     public int compareTo(Message that)
@@ -40,8 +40,6 @@ public class Message implements Serializable, Comparable<Message>
     }
 
     public messageType getType() {return type;}
-
-    public String getMessage() {return msg;}
-
+    
     public Timestamp getTimestamp() {return timestamp;}
 }
