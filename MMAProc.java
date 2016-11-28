@@ -141,7 +141,11 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
                 postponed = true;
                 break;
             case INQUIRE:
-                // TODO
+                if(postponed)
+                {
+                    numGrants--;
+                    sendRelinquish(message.getTimestamp().getId());
+                }
                 break;
             case RELEASE:
                 granted = false;
@@ -196,6 +200,12 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
             Message release = new Message(new Timestamp(time, procID), messageType.RELEASE);
             sendMessage(reqSet[j], release);
         }
+    }
+
+    private void sendRelinquish(int sendId)
+    {
+        Message reqMessage = new Message(new Timestamp(time, procID), messageType.RELINQUISH);
+        sendMessage(sendId, reqMessage);
     }
 
     private void executeCS()
