@@ -40,6 +40,6 @@ public class Message implements Serializable, Comparable<Message>
     }
 
     public messageType getType() {return type;}
-    
+
     public Timestamp getTimestamp() {return timestamp;}
 }

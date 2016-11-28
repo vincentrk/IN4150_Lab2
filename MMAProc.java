@@ -7,24 +7,34 @@ import java.util.*;
  */
 public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnable
 {
-    private int numProcesses;
+    private HashSet<Integer> requestSet;
     private int procID;
     private int time;
-    private PriorityQueue<Message> buffer;
-    private TreeMap<Timestamp, Integer> acks;
+    private PriorityQueue<Timestamp> buffer;
+    private int numGrants;
+    private boolean granted;
+    private boolean inquiring;
+    private boolean postponed;
+    private Timestamp currentGrant;
 
-    public MMAProc(int procID, int numProcesses) throws RemoteException // TODO this is not ideal better to implement try/catch
+    public MMAProc(int procID, HashSet<Integer> requestSet) throws RemoteException // TODO this is not ideal better to implement try/catch
     {
         this.procID = procID;
         this.time = 0;
-        this.buffer = new PriorityQueue<Message>();
-        this.numProcesses = numProcesses;
-        acks = new TreeMap<Timestamp, Integer>();
+        this.buffer = new PriorityQueue<Timestamp>();
+        this.requestSet = requestSet;
+        numGrants = 0;
+        // Tells if can currently grant permission
+        granted = false;
+        inquiring = false;
+        postponed = false;
+        currentGrant = new Timestamp(-1,-1);
     }
 
 
     public void run()
     {
+        // TODO
 //        while(true)
 //        {
 //            waitTime(getRandTime());
@@ -61,26 +71,29 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
         return ((int)(Math.random() * 1000));
     }
 
-//    public void broadcastMessage(Message message)
-//    {
-//        try
-//        {
-//            for(int i=0;i<numProcesses;i++)
-//            {
-//                sendMessage(i, message);
-//            }
-//            time++;
-//        } catch (Exception ex)
-//        {
-//            System.out.println(ex);
-//        }
-//    }
+    public void sendRequest()
+    {
+        numGrants = 0;
+        try
+        {
+            Integer[] reqSet = ((Integer[])(requestSet.toArray()));
+            for(int i=0;i<reqSet.length;i++)
+            {
+                Message req  = new Message(new Timestamp(time, procID), messageType.REQUEST);
+                sendMessage(reqSet[i], req);
+            }
+            time++;
+        } catch (Exception ex)
+        {
+            System.out.println(ex);
+        }
+    }
 
     public void sendMessage(int procID, Message message)
     {
         try
         {
-            TMOInterface Rcv = (TMOInterface) Naming.lookup("rmi://localhost/TMOProc" + procID);
+            MMAInterface Rcv = (MMAInterface) Naming.lookup("rmi://localhost/MMAProc" + procID);
             Rcv.receiveMessage(message);
         } catch (Exception e)
         {
@@ -90,70 +103,107 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
 
     public void receiveMessage(Message message)
     {
-//        if(message.getType() == messageType.Message)
-//        {
-//            System.out.println("Proc" + procID + " receiving message from " + message.getTimestamp());
-//            this.buffer.add(message);
-//            Message ack = new Message(new Timestamp(message.getTimestamp()), messageType.ACK, "");
-//            if(!acks.containsKey(message.getTimestamp()))
-//            {
-//                acks.put(message.getTimestamp(), 0);
-//            }
-//            broadcastMessage(ack);
-//        }
-//        else if(message.getType() == messageType.ACK)
-//        {
-//            System.out.println("Proc" + procID + " receiving ACK for " + message.getTimestamp());
-//            if(acks.containsKey(message.getTimestamp()))
-//            {
-//                acks.put(message.getTimestamp(), acks.get(message.getTimestamp()) + 1);
-//            }
-//            else
-//            {
-//                acks.put(message.getTimestamp(), 1);
-//            }
-//
-//            if((acks.get(message.getTimestamp()) >= numProcesses) && (buffer.peek().getTimestamp().equals(message.getTimestamp())))
-//            {
-//                deliverMessage();
-//            }
-//
-//        }
-//        else if(message.getType() == messageType.ERR)
-//        {
-//            System.out.println("Message Error: " + message.getMessage());
-//        }
-//        else
-//        {
-//            System.out.println("Error: MessageType not found.");
-//        }
+        switch (message.getType())
+        {
+            case GRANT:
+                numGrants++;
+                if(numGrants >= requestSet.size())
+                {
+                    postponed = false;
+                    executeCS();
+                    sendRelease();
+                    numGrants = 0;
+                }
+                break;
+            case REQUEST:
+                if(!granted)
+                {
+                    currentGrant = message.getTimestamp();
+                    sendGrant(currentGrant.getId());
+                    granted = true;
+                }
+                else
+                {
+                    buffer.add(message.getTimestamp());
+                    Timestamp v = buffer.peek();
+                    if((currentGrant.compareTo(message.getTimestamp()) < 0) || (v.compareTo(message.getTimestamp()) < 0))
+                    {
+                        sendPostpone(message.getTimestamp().getId());
+                    }
+                    else if(!inquiring)
+                    {
+                        inquiring = true;
+                        sendInquire(currentGrant.getId());
+                    }
+                }
+                break;
+            case POSTPONE:
+                postponed = true;
+                break;
+            case INQUIRE:
+                // TODO
+                break;
+            case RELEASE:
+                granted = false;
+                inquiring = false;
+                if(!buffer.isEmpty())
+                {
+                    currentGrant = buffer.remove();
+                    granted = true;
+                    sendGrant(currentGrant.getId());
+
+                }
+                break;
+            case RELINQUISH:
+                inquiring = false;
+                granted = false;
+                buffer.add(currentGrant);
+                currentGrant = buffer.remove();
+                granted = true;
+                sendGrant(currentGrant.getId());
+                break;
+            default:
+                System.out.println("Error message type not found");
+                return;
+        }
+        time = Math.max(time, message.getTimestamp().getTime()) + 1;
     }
 
-//    public void deliverMessage()
-//    {
-//        if(buffer.isEmpty())
-//        {
-//            return;
-//        }
-//
-//
-//        Message deliv = buffer.remove();
-//        acks.remove(deliv.getTimestamp());
-//        //System.out.println("Process " + this.procID + " Read message " + deliv.getMessage() );
-//        time = Math.max(time, deliv.getTimestamp().getTime()) + 1;
-//
-//        System.out.println("=======================================");
-//        System.out.println("PROCESS " + procID + " DELIVERED MESSAGE: " + deliv);
-//        System.out.println("=======================================");
-//
-//        // check if deliver message again?
-//        if(!buffer.isEmpty())
-//        {
-//            Timestamp temp = buffer.peek().getTimestamp();
-//            if((acks.containsKey(temp)) && (acks.get(temp) >= numProcesses))
-//            {
-//                deliverMessage();
-//            }
-//        }
-//    }
+    private void sendGrant(int sendId)
+    {
+        granted = true;
+        Message grantMessage = new Message(new Timestamp(time, procID), messageType.GRANT);
+        sendMessage(sendId, grantMessage);
+    }
+
+    private void sendInquire(int sendId)
+    {
+        Message inqMessage = new Message(new Timestamp(time, procID), messageType.INQUIRE);
+        sendMessage(sendId, inqMessage);
+    }
+
+    private void sendPostpone(int sendId)
+    {
+        Message postponeMessage = new Message(new Timestamp(time, procID), messageType.POSTPONE);
+        sendMessage(sendId, postponeMessage);
+    }
+
+    private void sendRelease()
+    {
+        Integer[] reqSet = (Integer[])(requestSet.toArray());
+        for(int j=0; j<reqSet.length; j++)
+        {
+            Message release = new Message(new Timestamp(time, procID), messageType.RELEASE);
+            sendMessage(reqSet[j], release);
+        }
+    }
+
+    private void executeCS()
+    {
+        System.out.println("================================================");
+        System.out.println("Process" + procID + " entering critical section");
+        System.out.println("================================================");
+        waitTime(getRandTime());
+    }
+
 }
