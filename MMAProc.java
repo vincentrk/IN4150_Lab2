@@ -7,7 +7,7 @@ import java.util.*;
  */
 public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnable
 {
-    private HashSet<Integer> requestSet;
+    private int[] requestSet;
     private int procID;
     private int time;
     private PriorityQueue<Timestamp> buffer;
@@ -17,14 +17,14 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
     private boolean postponed;
     private Timestamp currentGrant;
 
-    public MMAProc(int procID, HashSet<Integer> requestSet) throws RemoteException // TODO this is not ideal better to implement try/catch
+    public MMAProc(int procID, int[] requestSet) throws RemoteException
     {
         this.procID = procID;
         this.time = 0;
         this.buffer = new PriorityQueue<Timestamp>();
         this.requestSet = requestSet;
         numGrants = 0;
-        // Tells if can currently grant permission
+        // boolean value that tells if this process has already granted permission to another process
         granted = false;
         inquiring = false;
         postponed = false;
@@ -34,24 +34,17 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
 
     public void run()
     {
-        // TODO
-//        while(true)
-//        {
-//            waitTime(getRandTime());
-//            System.out.println("ProcID: " + procID + ", time " + time);
-//            if(Math.random() > 0.5)
-//            {
-//                Message m = new Message(new Timestamp(time, procID), messageType.Message, "Broadcast from " + procID + " at local time " + time);
-//                System.out.println("Proc" + procID + " broadcast message at time: " + time);
-//                broadcastMessage(m);
-//            }
-//        }
-//        //return;
-    }
-
-    public void printTest()
-    {
-        System.out.println("THIS IS THE TEST FOR PROC: " + procID);
+        while(true)
+        {
+            waitTime(getRandTime());
+            System.out.println("ProcID: " + procID + ", time " + time);
+            if(Math.random() > 0.8)
+            {
+                System.out.println("Proc" + procID + " requests to go into its critical section from " + requestSetToString(requestSet) + " at time " + time);
+                sendRequest();
+            }
+        }
+        //return;
     }
 
     public void waitTime(int time)
@@ -71,16 +64,18 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
         return ((int)(Math.random() * 1000));
     }
 
+    // Sends request messages to all processes in the request set and increments time
     public void sendRequest()
     {
         numGrants = 0;
         try
         {
-            Integer[] reqSet = ((Integer[])(requestSet.toArray()));
-            for(int i=0;i<reqSet.length;i++)
+            //Integer[] reqSet = ((Integer[])(requestSet.toArray()));
+            for(int i=0;i<requestSet.length;i++)
             {
                 Message req  = new Message(new Timestamp(time, procID), messageType.REQUEST);
-                sendMessage(reqSet[i], req);
+                System.out.println("Proc" + procID + " sends REQUEST message to proc" + requestSet[i] + " at time " + time);
+                sendMessage(requestSet[i], req);
             }
             time++;
         } catch (Exception ex)
@@ -103,11 +98,13 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
 
     public void receiveMessage(Message message)
     {
+        System.out.println("Proc" + procID + " receives " + message.getType() + " message from proc" +
+                message.getTimestamp().getId() + " at time " + message.getTimestamp().getTime());
         switch (message.getType())
         {
             case GRANT:
                 numGrants++;
-                if(numGrants >= requestSet.size())
+                if(numGrants >= requestSet.length)
                 {
                     postponed = false;
                     executeCS();
@@ -175,6 +172,7 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
 
     private void sendGrant(int sendId)
     {
+        System.out.println("Proc" + procID + " sends GRANT message to proc" + sendId + " at time " + time);
         granted = true;
         Message grantMessage = new Message(new Timestamp(time, procID), messageType.GRANT);
         sendMessage(sendId, grantMessage);
@@ -182,28 +180,31 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
 
     private void sendInquire(int sendId)
     {
+        System.out.println("Proc" + procID + " sends INQUIRE message to proc" + sendId + " at time " + time);
         Message inqMessage = new Message(new Timestamp(time, procID), messageType.INQUIRE);
         sendMessage(sendId, inqMessage);
     }
 
     private void sendPostpone(int sendId)
     {
+        System.out.println("Proc" + procID + " sends POSTPONE message to proc" + sendId + " at time " + time);
         Message postponeMessage = new Message(new Timestamp(time, procID), messageType.POSTPONE);
         sendMessage(sendId, postponeMessage);
     }
 
     private void sendRelease()
     {
-        Integer[] reqSet = (Integer[])(requestSet.toArray());
-        for(int j=0; j<reqSet.length; j++)
+        for(int j=0; j<requestSet.length; j++)
         {
+            System.out.println("Proc" + procID + " sends RELEASE message to proc" + requestSet[j] + " at time " + time);
             Message release = new Message(new Timestamp(time, procID), messageType.RELEASE);
-            sendMessage(reqSet[j], release);
+            sendMessage(requestSet[j], release);
         }
     }
 
     private void sendRelinquish(int sendId)
     {
+        System.out.println("Proc" + procID + " sends RELINQUISH message to proc" + sendId + " at time " + time);
         Message reqMessage = new Message(new Timestamp(time, procID), messageType.RELINQUISH);
         sendMessage(sendId, reqMessage);
     }
@@ -211,9 +212,24 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
     private void executeCS()
     {
         System.out.println("================================================");
-        System.out.println("Process" + procID + " entering critical section");
+        System.out.println("Process " + procID + " entering critical section");
         System.out.println("================================================");
-        waitTime(getRandTime());
+        waitTime(getRandTime() * 2);
+    }
+
+    private String requestSetToString(int[] requestSet)
+    {
+        String reqset = "[";
+        for(int i=0; i<requestSet.length; i++)
+        {
+            reqset += requestSet[i];
+            if(i < requestSet.length-1)
+            {
+                reqset += ", ";
+            }
+        }
+        reqset += "]";
+        return reqset;
     }
 
 }
