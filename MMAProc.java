@@ -16,14 +16,16 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
     private boolean inquiring;
     private boolean postponed;
     private Timestamp currentGrant;
+    private int numOfIterations;
 
-    public MMAProc(int procID, int[] requestSet) throws RemoteException
+    public MMAProc(int procID, int[] requestSet,int numOfIterations) throws RemoteException
     {
         this.procID = procID;
         this.time = 0;
         this.buffer = new PriorityQueue<Timestamp>();
         this.requestSet = requestSet;
         numGrants = 0;
+        this.numOfIterations=numOfIterations;
         // boolean value that tells if this process has already granted permission to another process
         granted = false;
         inquiring = false;
@@ -34,7 +36,7 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
 
     public void run()
     {
-        while(true)
+        for(int i=0;i<numOfIterations;i++)
         {
             waitTime(getRandTime());
             System.out.println("ProcID: " + procID + ", time " + time);

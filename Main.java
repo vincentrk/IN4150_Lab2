@@ -12,10 +12,20 @@ import java.util.Map;
  */
 public class Main
 {
-    private static final int NUM_PROCESSES = 4;
+   // private static final int NUM_PROCESSES = 4;
 
     public static void main(String[] args) throws RemoteException
     {
+        System.out.print(args.length);
+        if(args.length!=3) {
+            System.out.println("Invalid Arguments enter current process id, Number of Process, and number of iterations");
+            return;
+        }
+        int thisProcId=Integer.parseInt(args[0]);
+        int NUM_PROCESSES=Integer.parseInt(args[1]);
+        int numberOfIterations=Integer.parseInt(args[2]);
+
+
         try
         {
             LocateRegistry.createRegistry(1099);
@@ -28,22 +38,20 @@ public class Main
 
 //        ArrayList<HashSet<Integer>> requestSets = createRequestSets(NUM_PROCESSES);
         int[][] requestSets = createRequestSets(NUM_PROCESSES);
-        printRequestSets(requestSets);
+     //   printRequestSets(requestSets);
 
         // create, bind, and start the processes
-        for(int i=0;i<NUM_PROCESSES;i++)
-        {
-            MMAProc p = new MMAProc(i, requestSets[i]);
+
+            MMAProc p = new MMAProc(thisProcId, requestSets[thisProcId],numberOfIterations);
             try
             {
-                Naming.rebind("rmi://localhost:1099/MMAProc"+i, p);
-                new Thread(p).start();
+                Naming.rebind("rmi://localhost:1099/MMAProc"+thisProcId, p);
+                p.run();
             }
             catch (Exception ex)
             {
                 System.out.println(ex);
             }
-        }
     }
 
     // Create all request sets using an adjusted grid from the lecture slides
