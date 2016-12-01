@@ -33,7 +33,6 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
         currentGrant = new Timestamp(-1,-1);
     }
 
-
     public void run()
     {
         for(int i=0;i<numOfIterations;i++)
@@ -43,9 +42,10 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
             if(Math.random() > 0.8)
             {
                 System.out.println("Proc" + procID + " requests to go into its critical section from " + requestSetToString(requestSet) + " at time " + time);
-                sendRequest();
+                sendRequest(new Timestamp(time, procID));
             }
         }
+        System.out.println("Proc" + procID + " completed at time " + time);
         //return;
     }
 
@@ -67,23 +67,16 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
     }
 
     // Sends request messages to all processes in the request set and increments time
-    public void sendRequest()
+    public void sendRequest(Timestamp reqTime)
     {
         numGrants = 0;
-        try
+        for(int i=0;i<requestSet.length;i++)
         {
-            //Integer[] reqSet = ((Integer[])(requestSet.toArray()));
-            for(int i=0;i<requestSet.length;i++)
-            {
-                Message req  = new Message(new Timestamp(time, procID), messageType.REQUEST);
-                System.out.println("Proc" + procID + " sends REQUEST message to proc" + requestSet[i] + " at time " + time);
-                sendMessage(requestSet[i], req);
-            }
-            time++;
-        } catch (Exception ex)
-        {
-            System.out.println(ex);
+            Message req  = new Message(reqTime, messageType.REQUEST);
+            System.out.println("Proc" + procID + " sends REQUEST message to proc" + requestSet[i] + " at time " + time);
+            sendMessage(requestSet[i], req);
         }
+        time++;
     }
 
     public void sendMessage(int procID, Message message)
@@ -118,8 +111,8 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
                 if(!granted)
                 {
                     currentGrant = message.getTimestamp();
-                    sendGrant(currentGrant.getId());
                     granted = true;
+                    sendGrant(currentGrant.getId());
                 }
                 else
                 {
@@ -151,10 +144,9 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
                 inquiring = false;
                 if(!buffer.isEmpty())
                 {
-                    currentGrant = buffer.remove();
                     granted = true;
+                    currentGrant = buffer.remove();
                     sendGrant(currentGrant.getId());
-
                 }
                 break;
             case RELINQUISH:
@@ -178,6 +170,7 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
         granted = true;
         Message grantMessage = new Message(new Timestamp(time, procID), messageType.GRANT);
         sendMessage(sendId, grantMessage);
+        time++;
     }
 
     private void sendInquire(int sendId)
@@ -185,6 +178,7 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
         System.out.println("Proc" + procID + " sends INQUIRE message to proc" + sendId + " at time " + time);
         Message inqMessage = new Message(new Timestamp(time, procID), messageType.INQUIRE);
         sendMessage(sendId, inqMessage);
+        time++;
     }
 
     private void sendPostpone(int sendId)
@@ -192,6 +186,7 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
         System.out.println("Proc" + procID + " sends POSTPONE message to proc" + sendId + " at time " + time);
         Message postponeMessage = new Message(new Timestamp(time, procID), messageType.POSTPONE);
         sendMessage(sendId, postponeMessage);
+        time++;
     }
 
     private void sendRelease()
@@ -202,6 +197,7 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
             Message release = new Message(new Timestamp(time, procID), messageType.RELEASE);
             sendMessage(requestSet[j], release);
         }
+        time++;
     }
 
     private void sendRelinquish(int sendId)
@@ -209,14 +205,18 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
         System.out.println("Proc" + procID + " sends RELINQUISH message to proc" + sendId + " at time " + time);
         Message reqMessage = new Message(new Timestamp(time, procID), messageType.RELINQUISH);
         sendMessage(sendId, reqMessage);
+        time++;
     }
 
     private void executeCS()
     {
         System.out.println("================================================");
-        System.out.println("Process " + procID + " entering critical section");
+        System.out.println("Process " + procID + " ENTERS critical section");
         System.out.println("================================================");
         waitTime(getRandTime() * 2);
+        System.out.println("================================================");
+        System.out.println("Process " + procID + " LEAVES critical section");
+        System.out.println("================================================");
     }
 
     private String requestSetToString(int[] requestSet)
