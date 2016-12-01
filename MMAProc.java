@@ -15,6 +15,7 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
     private boolean granted;
     private boolean inquiring;
     private boolean postponed;
+    private boolean requesting;
     private Timestamp currentGrant;
     private int numOfIterations;
 
@@ -30,6 +31,7 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
         granted = false;
         inquiring = false;
         postponed = false;
+        requesting = false;
         currentGrant = new Timestamp(-1,-1);
     }
 
@@ -39,7 +41,7 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
         {
             waitTime(getRandTime());
             System.out.println("ProcID: " + procID + ", time " + time);
-            if(Math.random() > 0.8)
+            if(!requesting && Math.random() > 0.8)
             {
                 System.out.println("Proc" + procID + " requests to go into its critical section from " + requestSetToString(requestSet) + " at time " + time);
                 sendRequest(new Timestamp(time, procID));
@@ -69,6 +71,7 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
     // Sends request messages to all processes in the request set and increments time
     public void sendRequest(Timestamp reqTime)
     {
+        requesting = true;
         numGrants = 0;
         for(int i=0;i<requestSet.length;i++)
         {
@@ -217,6 +220,7 @@ public class MMAProc extends UnicastRemoteObject implements MMAInterface, Runnab
         System.out.println("================================================");
         System.out.println("Process " + procID + " LEAVES critical section");
         System.out.println("================================================");
+        requesting = false;
     }
 
     private String requestSetToString(int[] requestSet)
